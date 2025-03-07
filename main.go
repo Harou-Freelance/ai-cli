@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/harou24/gpt-cli/cmd"
+	"github.com/harou24/ai-cli/cmd"
 )
 
 func main() {

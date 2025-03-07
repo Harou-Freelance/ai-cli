@@ -1,4 +1,4 @@
-module github.com/harou24/gpt-cli
+module github.com/harou24/ai-cli
 
 go 1.22.2
 
