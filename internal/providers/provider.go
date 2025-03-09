@@ -32,3 +32,14 @@ type Config struct {
 	Timeout int
 	Model   string
 }
+
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]Model, error)
+}
+
+type Model struct {
+	ID             string `json:"id"`
+	Description    string `json:"description"`
+	ContextWindow  int    `json:"context_window"`
+	SupportsVision bool   `json:"supports_vision"`
+}

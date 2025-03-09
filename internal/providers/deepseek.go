@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+/*
+=== DeepSeek ===
+Text Models (no vision support):
+- deepseek-chat (DeepSeek-V3): General purpose (64K context)
+- deepseek-reasoner (DeepSeek-R1): Advanced reasoning (64K context, 32K CoT tokens)
+*/
+
 const (
 	deepseekBaseURL        = "https://api.deepseek.com/v1"
 	deepseekDefaultModel   = "deepseek-chat"
@@ -47,7 +54,7 @@ func (p *DeepSeek) Generate(ctx context.Context, inputs Inputs) (string, error) 
 }
 
 func (p *DeepSeek) handleTextRequest(ctx context.Context, prompt string) (string, error) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": p.getModel(),
 		"messages": []map[string]interface{}{
 			{"role": "user", "content": prompt},
@@ -111,4 +118,51 @@ func (p *DeepSeek) getModel() string {
 		return p.config.Model
 	}
 	return deepseekDefaultModel
+}
+
+type DeepSeekModelsResponse struct {
+	Data []struct {
+		ID      string `json:"id"`
+		Details struct {
+			Description   string `json:"description"`
+			ContextWindow int    `json:"context_length"`
+		} `json:"capabilities"`
+	} `json:"data"`
+}
+
+func (p *DeepSeek) ListModels(ctx context.Context) ([]Model, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", deepseekBaseURL+"/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("request creation failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error [%d]: %s", resp.StatusCode, string(body))
+	}
+
+	var response DeepSeekModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("response parsing failed: %w", err)
+	}
+
+	var models []Model
+	for _, m := range response.Data {
+		models = append(models, Model{
+			ID:             m.ID,
+			Description:    m.Details.Description,
+			ContextWindow:  m.Details.ContextWindow,
+			SupportsVision: false, // DeepSeek currently has no vision models
+		})
+	}
+
+	return models, nil
 }

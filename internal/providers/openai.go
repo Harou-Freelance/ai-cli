@@ -9,8 +9,27 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+/*
+=== OpenAI ===
+Text Models:
+- gpt-4o-mini: General purpose text (128K context)
+- gpt-4-turbo: Advanced text processing (128K context)
+
+Vision Models (supports image input via URL/base64):
+- gpt-4o: General vision capabilities (128K context)
+- gpt-4o-mini: Basic vision processing (128K context)
+- gpt-4-turbo: Advanced vision analysis (128K context)
+
+Vision Limitations:
+- Max image size: 20MB (PNG/JPEG/WEBP/non-animated GIF)
+- Medical images not supported
+- Struggles with rotated text, spatial reasoning, and non-Latin characters
+- Image costs: 85-170 tokens per 512px tile + base 85 tokens
+*/
 
 const (
 	openAIBaseURL          = "https://api.openai.com/v1"
@@ -170,4 +189,78 @@ func (p *OpenAI) makeRequest(ctx context.Context, payload interface{}, endpoint 
 	}
 
 	return response.Choices[0].Message.Content, nil
+}
+
+type OpenAIModelResponse struct {
+	Object string        `json:"object"`
+	Data   []OpenAIModel `json:"data"`
+}
+
+type OpenAIModel struct {
+	ID          string `json:"id"`
+	Object      string `json:"object"`
+	Created     int64  `json:"created"`
+	OwnedBy     string `json:"owned_by"`
+	Description string `json:"description,omitempty"`
+}
+
+func (p *OpenAI) ListModels(ctx context.Context) ([]Model, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", openAIBaseURL+"/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("request creation failed: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API error [%d]", resp.StatusCode)
+	}
+
+	var response OpenAIModelResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("response parsing failed: %w", err)
+	}
+
+	models := make([]Model, 0, len(response.Data))
+	for _, m := range response.Data {
+		models = append(models, Model{
+			ID:             m.ID,
+			Description:    fmt.Sprintf("%s (%s)", m.ID, m.OwnedBy),
+			ContextWindow:  getOpenAIContextWindow(m.ID),
+			SupportsVision: isVisionModel(m.ID),
+		})
+	}
+
+	return models, nil
+}
+
+// Helper functions
+func getOpenAIContextWindow(modelID string) int {
+	switch {
+	case strings.Contains(modelID, "128k"):
+		return 128000
+	case strings.Contains(modelID, "32k"):
+		return 32000
+	case strings.Contains(modelID, "16k"):
+		return 16000
+	default:
+		return 4096 // Default context window
+	}
+}
+
+func isVisionModel(modelID string) bool {
+	return strings.Contains(modelID, "vision") ||
+		strings.Contains(modelID, "gpt-4o") ||
+		strings.Contains(modelID, "turbo-vision")
 }
