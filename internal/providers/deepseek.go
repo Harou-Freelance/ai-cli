@@ -43,9 +43,9 @@ func (p *DeepSeek) Generate(ctx context.Context, inputs Inputs) (string, error) 
 }
 
 func (p *DeepSeek) handleTextRequest(ctx context.Context, prompt string) (string, error) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": p.getModel(),
-		"messages": []map[string]interface{}{
+		"messages": []map[string]any{
 			{"role": "user", "content": prompt},
 		},
 		"max_tokens": 1000,
