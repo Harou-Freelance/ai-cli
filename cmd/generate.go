@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -105,10 +106,16 @@ func parseInputs() (providers.Inputs, error) {
 		if err != nil {
 			return providers.Inputs{}, fmt.Errorf("failed to open image %s: %w", imgPath, err)
 		}
-		defer file.Close()
+
+		// Read the file immediately
+		data, err := io.ReadAll(file)
+		file.Close() // Close immediately after reading
+		if err != nil {
+			return providers.Inputs{}, fmt.Errorf("failed to read image %s: %w", imgPath, err)
+		}
 
 		imageReaders = append(imageReaders, providers.FileInput{
-			Reader:   file,
+			Data:     data,
 			Filename: filepath.Base(imgPath),
 		})
 	}

@@ -16,7 +16,7 @@ const (
 	openAIBaseURL          = "https://api.openai.com/v1"
 	openAIDefaultTimeout   = 30 * time.Second
 	openAIDefaultTextModel = "gpt-4"
-	openAIVisionModel      = "gpt-4-vision-preview"
+	openAIVisionModel      = "gpt-4o-mini" //models supporting images as input: o1, gpt-4.5-preview, gpt-4o, gpt-4o-mini, gpt-4-turbo
 )
 
 type OpenAI struct {
@@ -69,27 +69,28 @@ func (p *OpenAI) handleTextRequest(ctx context.Context, prompt string) (string, 
 }
 
 func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string, error) {
-	content := []interface{}{
+	content := []any{
 		map[string]string{"type": "text", "text": inputs.Prompt},
 	}
 
 	for _, img := range inputs.Images {
-		base64Image, err := encodeImage(img.Reader)
-		if err != nil {
-			return "", fmt.Errorf("image encoding failed: %w", err)
-		}
+		// Use the pre-loaded image data
+		base64Image := base64.StdEncoding.EncodeToString(img.Data)
 
 		content = append(content, map[string]interface{}{
 			"type": "image_url",
 			"image_url": map[string]string{
-				"url": fmt.Sprintf("data:image/%s;base64,%s", getMimeType(img.Filename), base64Image),
+				"url": fmt.Sprintf("data:image/%s;base64,%s",
+					getMimeType(img.Filename),
+					base64Image,
+				),
 			},
 		})
 	}
 
 	payload := map[string]interface{}{
 		"model": openAIVisionModel,
-		"messages": []map[string]interface{}{
+		"messages": []map[string]any{
 			{"role": "user", "content": content},
 		},
 		"max_tokens": 1000,
@@ -103,14 +104,6 @@ func (p *OpenAI) getModel() string {
 		return p.config.Model
 	}
 	return openAIDefaultTextModel
-}
-
-func encodeImage(r io.Reader) (string, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 func getMimeType(filename string) string {

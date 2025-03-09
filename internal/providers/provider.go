@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"io"
 )
 
 type Provider interface {
@@ -19,7 +18,7 @@ const (
 )
 
 type FileInput struct {
-	Reader   io.Reader
+	Data     []byte
 	Filename string
 }
 
