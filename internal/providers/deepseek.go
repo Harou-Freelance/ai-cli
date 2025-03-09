@@ -21,6 +21,10 @@ type DeepSeek struct {
 	client *http.Client
 }
 
+type deepseekError struct {
+	Message string `json:"message"`
+}
+
 func NewDeepSeek(config Config) *DeepSeek {
 	if config.Timeout == 0 {
 		config.Timeout = int(deepseekDefaultTimeout.Seconds())
@@ -43,9 +47,9 @@ func (p *DeepSeek) Generate(ctx context.Context, inputs Inputs) (string, error) 
 }
 
 func (p *DeepSeek) handleTextRequest(ctx context.Context, prompt string) (string, error) {
-	payload := map[string]any{
+	payload := map[string]interface{}{
 		"model": p.getModel(),
-		"messages": []map[string]any{
+		"messages": []map[string]interface{}{
 			{"role": "user", "content": prompt},
 		},
 		"max_tokens": 1000,
@@ -70,8 +74,16 @@ func (p *DeepSeek) handleTextRequest(ctx context.Context, prompt string) (string
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		var apiError deepseekError
+		if json.Unmarshal(body, &apiError) == nil && apiError.Message != "" {
+			return "", fmt.Errorf("API error [%d]: %s", resp.StatusCode, apiError.Message)
+		}
 		return "", fmt.Errorf("API error [%d]: %s", resp.StatusCode, string(body))
 	}
 
@@ -83,7 +95,7 @@ func (p *DeepSeek) handleTextRequest(ctx context.Context, prompt string) (string
 		} `json:"choices"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.Unmarshal(body, &response); err != nil {
 		return "", fmt.Errorf("response parsing failed: %w", err)
 	}
 

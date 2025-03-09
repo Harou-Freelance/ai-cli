@@ -13,8 +13,8 @@ var rootCmd = &cobra.Command{
 
 Examples:
   $ ai-cli generate -p "Explain quantum computing"
-  $ ai-cli generate -p "Describe this image" -i photo.jpg
-  $ ai-cli generate -p "Explain this diagram" -i diagram.png --provider openai`,
+  $ ai-cli generate -p "Describe this image" -i photo.jpg --json
+  $ ai-cli generate -p "Explain diagram" -i diagram.png --provider openai`,
 }
 
 func Execute() {

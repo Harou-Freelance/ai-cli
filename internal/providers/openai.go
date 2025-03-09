@@ -24,6 +24,12 @@ type OpenAI struct {
 	client *http.Client
 }
 
+type openAIError struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 func NewOpenAI(config Config) *OpenAI {
 	if config.Timeout == 0 {
 		config.Timeout = int(openAIDefaultTimeout.Seconds())
@@ -51,9 +57,9 @@ func (p *OpenAI) Generate(ctx context.Context, inputs Inputs) (string, error) {
 }
 
 func (p *OpenAI) handleTextRequest(ctx context.Context, prompt string) (string, error) {
-	payload := map[string]any{
+	payload := map[string]interface{}{
 		"model": p.getModel(),
-		"messages": []map[string]any{
+		"messages": []map[string]interface{}{
 			{"role": "user", "content": prompt},
 		},
 		"max_tokens": 1000,
@@ -63,7 +69,7 @@ func (p *OpenAI) handleTextRequest(ctx context.Context, prompt string) (string, 
 }
 
 func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string, error) {
-	content := []any{
+	content := []interface{}{
 		map[string]string{"type": "text", "text": inputs.Prompt},
 	}
 
@@ -73,7 +79,7 @@ func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string
 			return "", fmt.Errorf("image encoding failed: %w", err)
 		}
 
-		content = append(content, map[string]any{
+		content = append(content, map[string]interface{}{
 			"type": "image_url",
 			"image_url": map[string]string{
 				"url": fmt.Sprintf("data:image/%s;base64,%s", getMimeType(img.Filename), base64Image),
@@ -81,9 +87,9 @@ func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string
 		})
 	}
 
-	payload := map[string]any{
+	payload := map[string]interface{}{
 		"model": openAIVisionModel,
-		"messages": []map[string]any{
+		"messages": []map[string]interface{}{
 			{"role": "user", "content": content},
 		},
 		"max_tokens": 1000,
@@ -121,7 +127,7 @@ func getMimeType(filename string) string {
 	}
 }
 
-func (p *OpenAI) makeRequest(ctx context.Context, payload any, endpoint string) (string, error) {
+func (p *OpenAI) makeRequest(ctx context.Context, payload interface{}, endpoint string) (string, error) {
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("marshal error: %w", err)
@@ -141,8 +147,16 @@ func (p *OpenAI) makeRequest(ctx context.Context, payload any, endpoint string) 
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		var apiError openAIError
+		if json.Unmarshal(body, &apiError) == nil && apiError.Error.Message != "" {
+			return "", fmt.Errorf("API error [%d]: %s", resp.StatusCode, apiError.Error.Message)
+		}
 		return "", fmt.Errorf("API error [%d]: %s", resp.StatusCode, string(body))
 	}
 
@@ -154,7 +168,7 @@ func (p *OpenAI) makeRequest(ctx context.Context, payload any, endpoint string) 
 		} `json:"choices"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.Unmarshal(body, &response); err != nil {
 		return "", fmt.Errorf("response parsing failed: %w", err)
 	}
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,15 @@ var (
 	imagesFlag   []string
 	providerFlag string
 	apiKeyFlag   string
+	jsonOutput   bool
 )
+
+type CLIOutput struct {
+	Success  bool     `json:"success"`
+	Content  string   `json:"content,omitempty"`
+	Error    string   `json:"error,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
+}
 
 var generateCmd = &cobra.Command{
 	Use:     "generate",
@@ -24,34 +33,57 @@ var generateCmd = &cobra.Command{
 	Short:   "Generate responses using AI models",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+		var warnings []string
 
-		// Load environment variables from .env file
 		if err := godotenv.Load(); err != nil {
-			fmt.Println("Warning: No .env file found")
+			warnings = append(warnings, "No .env file found")
 		}
 
 		inputs, err := parseInputs()
 		if err != nil {
-			return fmt.Errorf("input validation failed: %w", err)
+			return formatOutput(jsonOutput, "", fmt.Errorf("input validation failed: %w", err), warnings)
 		}
 
 		provider, err := getProvider(providerFlag, apiKeyFlag)
 		if err != nil {
-			return fmt.Errorf("provider setup failed: %w", err)
+			return formatOutput(jsonOutput, "", fmt.Errorf("provider setup failed: %w", err), warnings)
 		}
 
 		if err := validateCapabilities(provider, inputs); err != nil {
-			return err
+			return formatOutput(jsonOutput, "", err, warnings)
 		}
 
 		result, err := provider.Generate(ctx, inputs)
 		if err != nil {
-			return fmt.Errorf("generation failed: %w", err)
+			return formatOutput(jsonOutput, "", err, warnings)
 		}
 
-		fmt.Println(result)
-		return nil
+		return formatOutput(jsonOutput, result, nil, warnings)
 	},
+}
+
+func formatOutput(jsonFlag bool, content string, err error, warnings []string) error {
+	if jsonFlag {
+		output := CLIOutput{
+			Success:  err == nil,
+			Content:  content,
+			Error:    "",
+			Warnings: warnings,
+		}
+		if err != nil {
+			output.Error = err.Error()
+		}
+
+		jsonData, _ := json.Marshal(output)
+		fmt.Println(string(jsonData))
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+	fmt.Println(content)
+	return nil
 }
 
 func init() {
@@ -59,6 +91,7 @@ func init() {
 	generateCmd.Flags().StringSliceVarP(&imagesFlag, "images", "i", []string{}, "Image paths")
 	generateCmd.Flags().StringVar(&providerFlag, "provider", "openai", "AI provider (openai|deepseek)")
 	generateCmd.Flags().StringVarP(&apiKeyFlag, "apikey", "k", "", "API key (overrides environment variable)")
+	generateCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
 	generateCmd.MarkFlagRequired("prompt")
 	rootCmd.AddCommand(generateCmd)
