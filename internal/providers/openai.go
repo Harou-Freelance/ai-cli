@@ -76,9 +76,9 @@ func (p *OpenAI) Generate(ctx context.Context, inputs Inputs) (string, error) {
 }
 
 func (p *OpenAI) handleTextRequest(ctx context.Context, prompt string) (string, error) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": p.getModel(),
-		"messages": []map[string]interface{}{
+		"messages": []map[string]any{
 			{"role": "user", "content": prompt},
 		},
 		"max_tokens": 1000,
@@ -96,7 +96,7 @@ func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string
 		// Use the pre-loaded image data
 		base64Image := base64.StdEncoding.EncodeToString(img.Data)
 
-		content = append(content, map[string]interface{}{
+		content = append(content, map[string]any{
 			"type": "image_url",
 			"image_url": map[string]string{
 				"url": fmt.Sprintf("data:image/%s;base64,%s",
@@ -107,7 +107,7 @@ func (p *OpenAI) handleVisionRequest(ctx context.Context, inputs Inputs) (string
 		})
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"model": openAIVisionModel,
 		"messages": []map[string]any{
 			{"role": "user", "content": content},
@@ -139,7 +139,7 @@ func getMimeType(filename string) string {
 	}
 }
 
-func (p *OpenAI) makeRequest(ctx context.Context, payload interface{}, endpoint string) (string, error) {
+func (p *OpenAI) makeRequest(ctx context.Context, payload any, endpoint string) (string, error) {
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("marshal error: %w", err)
