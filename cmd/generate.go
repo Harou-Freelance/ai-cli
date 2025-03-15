@@ -90,7 +90,7 @@ func formatOutput(jsonFlag bool, content string, err error, warnings []string) e
 func init() {
 	generateCmd.Flags().StringVarP(&promptFlag, "prompt", "p", "", "Text prompt (required)")
 	generateCmd.Flags().StringSliceVarP(&imagesFlag, "images", "i", []string{}, "Image paths")
-	generateCmd.Flags().StringVar(&providerFlag, "provider", "openai", "AI provider (openai|deepseek)")
+	generateCmd.Flags().StringVar(&providerFlag, "provider", "openai", "AI provider (openai|deepseek|mistral)")
 	generateCmd.Flags().StringVarP(&apiKeyFlag, "apikey", "k", "", "API key (overrides environment variable)")
 	generateCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 
@@ -107,9 +107,8 @@ func parseInputs() (providers.Inputs, error) {
 			return providers.Inputs{}, fmt.Errorf("failed to open image %s: %w", imgPath, err)
 		}
 
-		// Read the file immediately
 		data, err := io.ReadAll(file)
-		file.Close() // Close immediately after reading
+		file.Close()
 		if err != nil {
 			return providers.Inputs{}, fmt.Errorf("failed to read image %s: %w", imgPath, err)
 		}
@@ -141,6 +140,8 @@ func getProvider(name, flagKey string) (providers.Provider, error) {
 		return providers.NewOpenAI(config), nil
 	case "deepseek":
 		return providers.NewDeepSeek(config), nil
+	case "mistral":
+		return providers.NewMistral(config), nil
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", name)
 	}
@@ -157,6 +158,8 @@ func getAPIKey(provider, flagKey string) (string, error) {
 		envVar = os.Getenv("OPENAI_API_KEY")
 	case "deepseek":
 		envVar = os.Getenv("DEEPSEEK_API_KEY")
+	case "mistral":
+		envVar = os.Getenv("MISTRAL_API_KEY")
 	default:
 		return "", fmt.Errorf("unsupported provider: %s", provider)
 	}

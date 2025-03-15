@@ -26,10 +26,9 @@ var modelsCmd = &cobra.Command{
 		_ = godotenv.Load()
 
 		if len(modelsProvider) == 0 {
-			modelsProvider = []string{"openai", "deepseek"}
+			modelsProvider = []string{"openai", "deepseek", "mistral"}
 		}
 
-		// Map to group models by provider
 		providerModels := make(map[string][]providers.Model)
 		var errs []error
 
@@ -66,10 +65,9 @@ var modelsCmd = &cobra.Command{
 			jsonData, _ := json.MarshalIndent(providerModels, "", "  ")
 			fmt.Println(string(jsonData))
 		} else {
-			// Print separate tables for each provider
 			for provider, models := range providerModels {
 				printProviderTable(provider, models)
-				fmt.Println() // Add space between tables
+				fmt.Println()
 			}
 		}
 		return nil
@@ -97,7 +95,7 @@ func printProviderTable(provider string, models []providers.Model) {
 }
 
 func init() {
-	modelsCmd.Flags().StringSliceVar(&modelsProvider, "provider", []string{}, "Comma-separated list of providers (openai,deepseek)")
+	modelsCmd.Flags().StringSliceVar(&modelsProvider, "provider", []string{}, "Comma-separated list of providers (openai,deepseek,mistral)")
 	modelsCmd.Flags().BoolVar(&modelsJson, "json", false, "Output in JSON format")
 	rootCmd.AddCommand(modelsCmd)
 }
@@ -116,6 +114,12 @@ func getAPIKeyForProvider(provider string) (string, error) {
 			return "", fmt.Errorf("DEEPSEEK_API_KEY not found in environment")
 		}
 		return key, nil
+	case "mistral":
+		key := os.Getenv("MISTRAL_API_KEY")
+		if key == "" {
+			return "", fmt.Errorf("MISTRAL_API_KEY not found in environment")
+		}
+		return key, nil
 	default:
 		return "", fmt.Errorf("unsupported provider")
 	}
@@ -127,6 +131,8 @@ func getModelLister(provider string, apiKey string) (providers.ModelLister, erro
 		return providers.NewOpenAI(providers.Config{APIKey: apiKey}), nil
 	case "deepseek":
 		return providers.NewDeepSeek(providers.Config{APIKey: apiKey}), nil
+	case "mistral":
+		return providers.NewMistral(providers.Config{APIKey: apiKey}), nil
 	default:
 		return nil, fmt.Errorf("unsupported provider")
 	}
@@ -138,6 +144,8 @@ func getProviderName(modelID string) string {
 		return "DeepSeek"
 	case strings.Contains(modelID, "gpt"):
 		return "OpenAI"
+	case strings.Contains(modelID, "mistral"), strings.Contains(modelID, "mixtral"), strings.Contains(modelID, "ministral"):
+		return "Mistral"
 	default:
 		return "Unknown"
 	}
