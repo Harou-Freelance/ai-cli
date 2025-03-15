@@ -1,4 +1,4 @@
-module github.com/harou24/ai-cli
+module ai-cli
 
 go 1.23.4
 

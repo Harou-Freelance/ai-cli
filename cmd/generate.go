@@ -8,7 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/harou24/ai-cli/internal/providers"
+	"ai-cli/internal/providers"
+
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
