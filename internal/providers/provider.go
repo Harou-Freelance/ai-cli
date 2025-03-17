@@ -31,6 +31,7 @@ type Config struct {
 	APIKey  string
 	Timeout int
 	Model   string
+	Debug   bool // Added debug flag
 }
 
 type ModelLister interface {

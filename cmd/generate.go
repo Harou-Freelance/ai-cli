@@ -20,6 +20,7 @@ var (
 	providerFlag string
 	apiKeyFlag   string
 	jsonOutput   bool
+	debugFlag    bool
 )
 
 type CLIOutput struct {
@@ -94,6 +95,7 @@ func init() {
 	generateCmd.Flags().StringVar(&providerFlag, "provider", "openai", "AI provider (openai|deepseek|mistral)")
 	generateCmd.Flags().StringVarP(&apiKeyFlag, "apikey", "k", "", "API key (overrides environment variable)")
 	generateCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+	generateCmd.Flags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
 
 	generateCmd.MarkFlagRequired("prompt")
 	rootCmd.AddCommand(generateCmd)
@@ -134,6 +136,7 @@ func getProvider(name, flagKey string) (providers.Provider, error) {
 
 	config := providers.Config{
 		APIKey: key,
+		Debug:  debugFlag,
 	}
 
 	switch name {

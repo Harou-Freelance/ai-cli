@@ -13,18 +13,16 @@ import (
 
 /*
 === Mistral ===
-Text Models (no vision support as of March 2025):
 - ministral-8b-latest: Fastest, lightweight text generation (32K context, ~300 tokens/s)
 - mixtral-8x7b-instruct: High-quality text (32K context, ~200 tokens/s)
 - mistral-large-latest: Advanced reasoning (128K context, ~150 tokens/s)
 */
-
 const (
 	mistralBaseURL        = "https://api.mistral.ai/v1"
-	mistralDefaultModel   = "ministral-8b-latest"
-	mistralDefaultTimeout = 30 * time.Second // Max 30s as per your requirement
-	mistralMaxRetries     = 2                // Retry up to 2 times
-	mistralRetryDelay     = 1 * time.Second  // Delay between retries
+	mistralDefaultModel   = "mistral-small-latest"
+	mistralDefaultTimeout = 30 * time.Second
+	mistralMaxRetries     = 2
+	mistralRetryDelay     = 1 * time.Second
 )
 
 type Mistral struct {
@@ -38,7 +36,7 @@ type mistralError struct {
 
 func NewMistral(config Config) *Mistral {
 	timeout := mistralDefaultTimeout
-	if config.Timeout > 0 && config.Timeout <= 30 { // Cap at 30s
+	if config.Timeout > 0 && config.Timeout <= 30 {
 		timeout = time.Duration(config.Timeout) * time.Second
 	}
 	return &Mistral{
@@ -82,13 +80,17 @@ func (p *Mistral) handleTextRequest(ctx context.Context, prompt string) (string,
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
 
-		fmt.Printf("[DEBUG] Attempt %d: Sending request to Mistral: URL=%s, Model=%s, APIKey=%s\n",
-			attempt, mistralBaseURL+"/chat/completions", p.getModel(), maskAPIKey(p.config.APIKey))
+		if p.config.Debug {
+			fmt.Printf("[DEBUG] Attempt %d: Sending request to Mistral: URL=%s, Model=%s, APIKey=%s\n",
+				attempt, mistralBaseURL+"/chat/completions", p.getModel(), maskAPIKey(p.config.APIKey))
+		}
 
 		resp, err := p.client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("API request failed: %w", err)
-			fmt.Printf("[DEBUG] Attempt %d failed after %s: %v\n", attempt, time.Since(start), err)
+			if p.config.Debug {
+				fmt.Printf("[DEBUG] Attempt %d failed after %s: %v\n", attempt, time.Since(start), err)
+			}
 			if attempt < mistralMaxRetries {
 				time.Sleep(mistralRetryDelay)
 				continue
@@ -102,8 +104,10 @@ func (p *Mistral) handleTextRequest(ctx context.Context, prompt string) (string,
 			return "", fmt.Errorf("failed to read response body: %w", err)
 		}
 
-		fmt.Printf("[DEBUG] Attempt %d: Response status=%d, Time=%s, Body=%s\n",
-			attempt, resp.StatusCode, time.Since(start), string(body))
+		if p.config.Debug {
+			fmt.Printf("[DEBUG] Attempt %d: Response status=%d, Time=%s, Body=%s\n",
+				attempt, resp.StatusCode, time.Since(start), string(body))
+		}
 
 		if resp.StatusCode != http.StatusOK {
 			var apiError mistralError
@@ -129,11 +133,13 @@ func (p *Mistral) handleTextRequest(ctx context.Context, prompt string) (string,
 			return "", fmt.Errorf("no content in response")
 		}
 
-		fmt.Printf("[DEBUG] Success after %s\n", time.Since(start))
+		if p.config.Debug {
+			fmt.Printf("[DEBUG] Success after %s\n", time.Since(start))
+		}
 		return response.Choices[0].Message.Content, nil
 	}
 
-	return "", lastErr // Shouldn’t reach here, but included for safety
+	return "", lastErr
 }
 
 func (p *Mistral) ListModels(ctx context.Context) ([]Model, error) {
